@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Loan Eligibility System </title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<style>
+:root{
+  --bg1:#07122a; --bg2:#0b3148; --card:rgba(255,255,255,0.04);
+  --accent:#06b6d4; --primary:#3b82f6; --muted:#9aa6c7; --text:#eaf3ff;
+  --ok:#16a34a; --warn:#f97316; --radius:12px;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,system-ui,Arial;background:
+  radial-gradient(900px 500px at 10% 10%, rgba(6,182,212,0.06), transparent),
+  radial-gradient(900px 500px at 90% 80%, rgba(59,130,246,0.04), transparent),
+  linear-gradient(180deg,var(--bg1),var(--bg2));color:var(--text);-webkit-font-smoothing:antialiased;padding:28px}
+.wrap{max-width:1100px;margin:0 auto}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px}
+header h1{margin:0;font-size:1.3rem}
+.layout{display:grid;grid-template-columns:1fr 380px;gap:18px;margin-top:18px}
+@media (max-width:980px){.layout{grid-template-columns:1fr}}
+.card{background:var(--card);border-radius:var(--radius);padding:16px;border:1px solid rgba(255,255,255,0.04)}
+label{display:block;color:var(--muted);margin-bottom:6px;font-weight:600}
+input[type="text"], input[type="number"], select{width:100%;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:var(--text)}
+.row{display:flex;gap:12px;flex-wrap:wrap}
+.col{flex:1;min-width:140px}
+.controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.btn{padding:10px 12px;border-radius:10px;border:0;background:linear-gradient(90deg,var(--primary),#60a5fa);color:white;font-weight:700;cursor:pointer}
+.btn.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--text)}
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:12px}
+.kpi{padding:12px;border-radius:10px;text-align:center;background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01))}
+.kpi .label{color:var(--muted);font-size:.9rem}
+.kpi .value{font-weight:800;font-size:1.15rem;margin-top:6px}
+.resultBox{margin-top:12px;padding:12px;border-radius:10px}
+.resultBox.ok{background:rgba(22,138,74,0.06);border:1px solid rgba(22,138,74,0.12);color:var(--ok)}
+.resultBox.review{background:rgba(249,115,22,0.05);border:1px solid rgba(249,115,22,0.09);color:var(--warn)}
+.small{font-size:.9rem;color:var(--muted)}
+.error{color:#ffb4b4;font-size:.85rem;display:none;margin-top:6px}
+footer{margin-top:18px;text-align:center;color:var(--muted);font-size:.9rem}
+.badge{display:inline-block;padding:6px 10px;border-radius:999px;font-weight:700}
+.badge.ok{background:#06b6d4;color:#022;}
+.badge.warn{background:#ffb86b;color:#3a2200}
+.amortTable{margin-top:12px;max-height:220px;overflow:auto;border-radius:10px;border:1px solid rgba(255,255,255,0.1)}
+.amortTable table{width:100%;border-collapse:collapse}
+.amortTable th, .amortTable td{padding:6px;border-bottom:1px solid rgba(255,255,255,0.1);text-align:right;font-size:.85rem}
+.amortTable th{position:sticky;top:0;background:rgba(0,0,0,0.2)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Loan Eligibility Assessor </h1>
+      <div class="small">Interactive pre-screening with charts & CSV export</div>
+    </div>
+    <div class="small">Client-side tool</div>
+  </header>
+
+  <div class="layout">
+    <section class="card" aria-labelledby="formTitle">
+      <h2 id="formTitle" style="margin:0 0 8px">Applicant Information</h2>
+      <div style="display:grid;gap:10px">
+        <div class="row">
+          <div class="col">
+            <label for="name">Full name</label>
+            <input id="name" type="text" placeholder="Applicant name">
+            <div id="err-name" class="error">Name required</div>
+          </div>
+          <div class="col">
+            <label for="employment">Employment type</label>
+            <select id="employment">
+              <option value="salaried">Salaried (Private)</option>
+              <option value="govt">Government</option>
+              <option value="self">Self-employed</option>
+              <option value="student">Student / Unemployed</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col">
+            <label for="income">Monthly income (INR)</label>
+            <input id="income" type="number" min="0" placeholder="e.g. 45000">
+            <div id="err-income" class="error">Enter valid income</div>
+          </div>
+          <div class="col">
+            <label for="loanAmount">Requested loan (INR)</label>
+            <input id="loanAmount" type="number" min="0" placeholder="e.g. 300000">
+            <div id="err-loan" class="error">Enter loan amount</div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col">
+            <label for="tenure">Tenure (months)</label>
+            <input id="tenure" type="number" min="1" placeholder="e.g. 36">
+            <div id="err-tenure" class="error">Enter valid tenure</div>
+          </div>
+          <div class="col">
+            <label for="creditScore">Credit score (300–900)</label>
+            <input id="creditScore" type="number" min="300" max="900" placeholder="e.g. 700">
+            <div id="err-credit" class="error">Enter credit score</div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col">
+            <label for="age">Age</label>
+            <input id="age" type="number" min="18" max="75" placeholder="e.g. 30">
+            <div id="err-age" class="error">Enter valid age</div>
+          </div>
+          <div class="col">
+            <label for="purpose">Loan purpose (optional)</label>
+            <input id="purpose" type="text" placeholder="e.g. Home repair">
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col">
+            <label for="coIncome">Co-applicant monthly income (optional)</label>
+            <input id="coIncome" type="number" min="0" placeholder="e.g. 30000">
+          </div>
+          <div class="col">
+            <label for="debts">Existing monthly debts (optional)</label>
+            <input id="debts" type="number" min="0" placeholder="e.g. 5000">
+          </div>
+        </div>
+
+        <p id="emiPreview" class="small" style="margin-top:6px">EMI preview: ₹0</p>
+
+        <div class="controls">
+          <button id="assessBtn" class="btn">Assess</button>
+          <button id="csvBtn" class="btn ghost">Download CSV</button>
+          <button id="clearBtn" class="btn ghost">Clear</button>
+          <button id="sampleBtn" class="btn ghost">Prefill Example</button>
+        </div>
+
+        <div id="resultContainer"></div>
+
+        <div class="kpis" aria-hidden="false">
+          <div class="kpi"><div class="label">EMI</div><div class="value" id="emiKPI">—</div></div>
+          <div class="kpi"><div class="label">EMI/Income</div><div class="value" id="emiRatioKPI">—</div></div>
+          <div class="kpi"><div class="label">Loan/Annual Income</div><div class="value" id="loanAnnualKPI">—</div></div>
+          <div class="kpi"><div class="label">Total repayment</div><div class="value" id="totalRepKPI">—</div></div>
+          <div class="kpi"><div class="label">Total interest</div><div class="value" id="totalIntKPI">—</div></div>
+        </div>
+
+        <div class="amortTable" id="amortTable"></div>
+
+      </div>
+    </section>
+
+    <aside class="card" aria-labelledby="dashTitle">
+      <h2 id="dashTitle" style="margin:0 0 8px">Dashboard</h2>
+      <div style="height:180px">
+        <canvas id="gauge" width="320" height="180"></canvas>
+      </div>
+      <div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center">
+        <div class="small">Approval probability</div>
+        <div style="font-weight:800" id="probDisplay">—</div>
+      </div>
+      <div style="margin-top:12px">
+        <canvas id="breakdown" width="320" height="180"></canvas>
+      </div>
+      <div style="margin-top:10px" class="small" id="recommendations"></div>
+    </aside>
+  </div>
+
+  <footer>Tip: Use <strong>Prefill Example</strong> to test quickly. CSV filename includes applicant name + date.</footer>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', ()=>{
+const $ = id=>document.getElementById(id);
+const toINR = n => (typeof n==='number'&&!isNaN(n))?'₹'+n.toLocaleString('en-IN'):'—';
+const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+
+const elems = {
+  name:$('name'), employment:$('employment'), income:$('income'),
+  loanAmount:$('loanAmount'), tenure:$('tenure'), creditScore:$('creditScore'),
+  age:$('age'), purpose:$('purpose'), coIncome:$('coIncome'), debts:$('debts'),
+  emiPreview:$('emiPreview'), assessBtn:$('assessBtn'), csvBtn:$('csvBtn'),
+  clearBtn:$('clearBtn'), sampleBtn:$('sampleBtn'),
+  errName:$('err-name'), errIncome:$('err-income'), errLoan:$('err-loan'),
+  errTenure:$('err-tenure'), errCredit:$('err-credit'), errAge:$('err-age'),
+  resultContainer:$('resultContainer'), emiKPI:$('emiKPI'),
+  emiRatioKPI:$('emiRatioKPI'), loanAnnualKPI:$('loanAnnualKPI'),
+  totalRepKPI:$('totalRepKPI'), totalIntKPI:$('totalIntKPI'),
+  probDisplay:$('probDisplay'), recommendations:$('recommendations'),
+  amortTable:$('amortTable')
+};
+
+const WEIGHTS={credit:40,affordability:35,loanSize:15,employment:7,age:3};
+const THRESHOLD=65;
+const EMP_RATE={govt:0.085,salaried:0.095,self:0.11,student:0.14};
+
+const gaugeChart = new Chart($('gauge').getContext('2d'),{
+  type:'doughnut', data:{labels:['Approval','Remaining'], datasets:[{data:[0,100], backgroundColor:['#06b6d4','#e6eef8'], borderWidth:0}]},
+  options:{rotation:-90*Math.PI/180, circumference:180*Math.PI/180, cutout:'72%', plugins:{legend:{display:false}, tooltip:{enabled:false}}, maintainAspectRatio:false}
+});
+
+const breakdownChart = new Chart($('breakdown').getContext('2d'),{
+  type:'bar', data:{labels:['Credit','Affordability','Loan-size','Employment','Age'], datasets:[{label:'Score', data:[0,0,0,0,0], backgroundColor:['#60a5fa','#06b6d4','#ffd166','#a78bfa','#34d399']}]},
+  options:{plugins:{legend:{display:false}}, scales:{y:{min:0,max:100,ticks:{stepSize:20}}}, maintainAspectRatio:false}
+});
+
+let lastResult=null;
+
+// EMI calculation
+function computeEMI(P, annualRate, months){
+  if(!P || months<=0) return 0;
+  const r=annualRate/12;
+  return r?(P*r/(1-Math.pow(1+r,-months))):(P/months);
+}
+
+// Generate amortization
+function getAmortization(P, rAnnual, months){
+  const r=rAnnual/12;
+  const table=[];
+  let balance=P, totalInterest=0;
+  for(let i=1;i<=months;i++){
+    const interest=balance*r;
+    const principal=computeEMI(P,rAnnual,months)-interest;
+    balance=Math.max(0,balance-principal);
+    totalInterest+=interest;
+    table.push({month:i,principal:principal.toFixed(2),interest:interest.toFixed(2),cumulativePrincipal:(P-balance).toFixed(2),cumulativeInterest:totalInterest.toFixed(2),balance:balance.toFixed(2)});
+  }
+  return table;
+}
+
+// Update amort table
+function renderAmortization(data){
+  if(!data.length){elems.amortTable.innerHTML='';return;}
+  let html='<table><thead><tr><th>Month</th><th>Principal</th><th>Interest</th><th>Cumulative P</th><th>Cumulative I</th><th>Balance</th></tr></thead><tbody>';
+  data.forEach(r=>{html+=`<tr><td>${r.month}</td><td>${toINR(+r.principal)}</td><td>${toINR(+r.interest)}</td><td>${toINR(+r.cumulativePrincipal)}</td><td>${toINR(+r.cumulativeInterest)}</td><td>${toINR(+r.balance)}</td></tr>`});
+  html+='</tbody></table>';
+  elems.amortTable.innerHTML=html;
+}
+
+// Form handling
+function getFormData(){
+  return {
+    name:elems.name.value.trim(), employment:elems.employment.value,
+    income:+elems.income.value, loanAmount:+elems.loanAmount.value,
+    tenure:+elems.tenure.value, creditScore:+elems.creditScore.value,
+    age:+elems.age.value, purpose:elems.purpose.value.trim(),
+    coIncome:+elems.coIncome.value||0, debts:+elems.debts.value||0
+  };
+}
+
+function validateForm(form){
+  const errorMap = {
+    name: elems.errName,
+    income: elems.errIncome,
+    loanAmount: elems.errLoan,
+    tenure: elems.errTenure,
+    creditScore: elems.errCredit,
+    age: elems.errAge
+  };
+  let valid=true;
+  ['name','income','loanAmount','tenure','creditScore','age'].forEach(f=>{
+    const val=form[f];
+    const err=errorMap[f];
+    if(!val){err.style.display='block'; valid=false}else{err.style.display='none'}
+  });
+  return valid;
+}
+
+// Compute approval probability
+function computeProbability(form){
+  const creditScore=Math.min(Math.max(form.creditScore,300),900);
+  const incomeTotal=form.income+form.coIncome-form.debts;
+  const affordabilityScore=clamp(100*(incomeTotal/(form.loanAmount/(form.tenure||1))),0,100);
+  const loanSizeScore=clamp(100*(1-form.loanAmount/(form.income*12)),0,100);
+  const empScore=EMP_RATE[form.employment]||0.1;
+  const ageScore=clamp(100*(form.age/75),0,100);
+
+  const weighted=(creditScore*WEIGHTS.credit/100 + affordabilityScore*WEIGHTS.affordability/100 + loanSizeScore*WEIGHTS.loanSize/100 + (100-empScore*100)*WEIGHTS.employment/100 + ageScore*WEIGHTS.age/100);
+  return clamp(weighted,0,100);
+}
+
+// Update dashboard charts
+function updateDashboard(prob, factors){
+  gaugeChart.data.datasets[0].data=[prob,100-prob]; gaugeChart.update();
+  breakdownChart.data.datasets[0].data=factors; breakdownChart.update();
+  elems.probDisplay.textContent=prob.toFixed(1)+'%';
+}
+
+// Update KPIs
+function updateKPIs(emi,P,tenure){
+  const totalRep=emi*tenure, totalInt=totalRep-P;
+  elems.emiKPI.textContent=toINR(emi);
+  elems.emiRatioKPI.textContent=((emi/(lastResult.income+lastResult.coIncome))*100).toFixed(1)+'%';
+  elems.loanAnnualKPI.textContent=(P/(lastResult.income*12)*100).toFixed(1)+'%';
+  elems.totalRepKPI.textContent=toINR(totalRep);
+  elems.totalIntKPI.textContent=toINR(totalInt);
+}
+
+// Generate recommendations
+function getRecommendations(prob){
+  if(prob>THRESHOLD) return 'Loan likely to be approved. Maintain current profile.';
+  if(prob>50) return 'Loan approval uncertain. Consider reducing debts or tenure.';
+  return 'High risk. Improve credit score or reduce loan amount.';
+}
+
+// Main assess
+elems.assessBtn.addEventListener('click',()=>{
+  const form=getFormData();
+  if(!validateForm(form)) return;
+
+  const emi=computeEMI(form.loanAmount,EMP_RATE[form.employment],form.tenure);
+  elems.emiPreview.textContent='EMI preview: '+toINR(emi);
+  const amort=getAmortization(form.loanAmount,EMP_RATE[form.employment],form.tenure);
+  renderAmortization(amort);
+
+  const prob=computeProbability(form);
+  lastResult=form;
+  const factors=[
+    clamp(form.creditScore/900*100,0,100),
+    clamp(((form.income+form.coIncome-form.debts)/(form.loanAmount/(form.tenure||1)))*100,0,100),
+    clamp(100*(1-form.loanAmount/(form.income*12)),0,100),
+    clamp(100*(1-EMP_RATE[form.employment]*100/100),0,100),
+    clamp(form.age/75*100,0,100)
+  ];
+
+  updateDashboard(prob,factors);
+  updateKPIs(emi,form.loanAmount,form.tenure);
+
+  elems.resultContainer.innerHTML=`<div class="resultBox ${prob>THRESHOLD?'ok':'review'}"><strong>Status: ${prob>THRESHOLD?'Likely Approved':'Review Required'}</strong><br>${getRecommendations(prob)}</div>`;
+});
+
+// CSV export
+elems.csvBtn.addEventListener('click',()=>{
+  if(!lastResult) return alert('Assess first!');
+  const emi=computeEMI(lastResult.loanAmount,EMP_RATE[lastResult.employment],lastResult.tenure);
+  const amort=getAmortization(lastResult.loanAmount,EMP_RATE[lastResult.employment],lastResult.tenure);
+  let csv='Month,Principal,Interest,Cumulative Principal,Cumulative Interest,Balance\n';
+  amort.forEach(r=>{csv+=`${r.month},${r.principal},${r.interest},${r.cumulativePrincipal},${r.cumulativeInterest},${r.balance}\n`});
+  const blob=new Blob([csv],{type:'text/csv'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`Loan_${lastResult.name.replace(/\s+/g,'_')}_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+});
+
+// Clear form
+elems.clearBtn.addEventListener('click',()=>{
+  Object.values(elems).forEach(el=>{if(el.tagName==='INPUT') el.value='';});
+  elems.emiPreview.textContent='EMI preview: ₹0';
+  elems.resultContainer.innerHTML=''; elems.amortTable.innerHTML='';
+  elems.probDisplay.textContent='—';
+  gaugeChart.data.datasets[0].data=[0,100]; gaugeChart.update();
+  breakdownChart.data.datasets[0].data=[0,0,0,0,0]; breakdownChart.update();
+  ['emiKPI','emiRatioKPI','loanAnnualKPI','totalRepKPI','totalIntKPI'].forEach(id=>$(id).textContent='—');
+});
+
+// Prefill example
+elems.sampleBtn.addEventListener('click',()=>{
+  elems.name.value='Rohan Singh'; elems.employment.value='salaried';
+  elems.income.value=60000; elems.loanAmount.value=500000;
+  elems.tenure.value=36; elems.creditScore.value=720; elems.age.value=28;
+  elems.purpose.value='Home renovation'; elems.coIncome.value=25000; elems.debts.value=5000;
+  elems.assessBtn.click();
+});
+});
+</script>
+</body>
+</html>
+<footer style="
+  position:sticky; 
+  bottom:0; 
+  width:100%; 
+  background:rgba(0,0,0,0.3); 
+  backdrop-filter:blur(10px); 
+  padding:12px 20px; 
+  border-top:1px solid rgba(255,255,255,0.1);
+  display:flex; 
+  justify-content:space-between; 
+  align-items:center; 
+  font-size:0.85rem; 
+  flex-wrap:wrap;
+">
+  <div>Designed by <strong>Prachi</strong></div>
+  <div>
+    <span class="badge ok">#LoanAssessor</span>
+    <span class="badge ok">#EMICalculator</span>
+    <span class="badge warn">#FinancialLiteracy</span>
+    <span class="badge warn">#CSVExport</span>
+    <span class="badge ok">#Dashboard</span>
+  </div>
+</footer>
